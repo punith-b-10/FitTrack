@@ -1,0 +1,218 @@
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import login, logout, authenticate
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import AuthenticationForm
+from django.contrib import messages
+from django.db.models import Sum, Avg
+from django.utils import timezone
+from datetime import timedelta
+import json
+
+from .models import UserProfile, BodyMetric, WorkoutLog, DietLog
+from .forms import RegisterForm, UserProfileForm, BodyMetricForm, WorkoutLogForm, DietLogForm
+
+
+def register_view(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    if request.method == 'POST':
+        form = RegisterForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            UserProfile.objects.create(user=user)
+            login(request, user)
+            messages.success(request, f'Welcome to FitTrack, {user.first_name}!')
+            return redirect('setup_profile')
+    else:
+        form = RegisterForm()
+    return render(request, 'tracker/register.html', {'form': form})
+
+
+def login_view(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    if request.method == 'POST':
+        form = AuthenticationForm(data=request.POST)
+        if form.is_valid():
+            user = form.get_user()
+            login(request, user)
+            return redirect('dashboard')
+        else:
+            messages.error(request, 'Invalid username or password.')
+    else:
+        form = AuthenticationForm()
+    return render(request, 'tracker/login.html', {'form': form})
+
+
+def logout_view(request):
+    logout(request)
+    return redirect('login')
+
+
+@login_required
+def setup_profile(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    if request.method == 'POST':
+        form = UserProfileForm(request.POST, instance=profile)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Profile updated!')
+            return redirect('dashboard')
+    else:
+        form = UserProfileForm(instance=profile)
+    return render(request, 'tracker/setup_profile.html', {'form': form})
+
+
+@login_required
+def dashboard(request):
+    user = request.user
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    today = timezone.now().date()
+    last_30 = today - timedelta(days=30)
+
+    # Latest weight
+    latest_metric = BodyMetric.objects.filter(user=user).first()
+    bmi = None
+    bmi_category = None
+    ideal_low, ideal_high = profile.ideal_weight_range()
+
+    if latest_metric:
+        bmi = profile.calculate_bmi(latest_metric.weight_kg)
+        bmi_category = profile.bmi_category(bmi)
+
+    # Weight chart data (last 30 days)
+    metrics = BodyMetric.objects.filter(user=user, date__gte=last_30).order_by('date')
+    weight_labels = [str(m.date) for m in metrics]
+    weight_data = [m.weight_kg for m in metrics]
+
+    # Workout stats
+    workouts_this_week = WorkoutLog.objects.filter(
+        user=user, date__gte=today - timedelta(days=7)
+    )
+    total_workout_mins = workouts_this_week.aggregate(Sum('duration_minutes'))['duration_minutes__sum'] or 0
+    total_calories_burned = workouts_this_week.aggregate(Sum('calories_burned'))['calories_burned__sum'] or 0
+
+    # Workout type distribution
+    workout_types = {}
+    for w in WorkoutLog.objects.filter(user=user, date__gte=last_30):
+        workout_types[w.get_workout_type_display()] = workout_types.get(w.get_workout_type_display(), 0) + 1
+
+    # Diet today
+    diet_today = DietLog.objects.filter(user=user, date=today)
+    calories_today = diet_today.aggregate(Sum('calories'))['calories__sum'] or 0
+    protein_today = diet_today.aggregate(Sum('protein_g'))['protein_g__sum'] or 0
+
+    # Recent workouts
+    recent_workouts = WorkoutLog.objects.filter(user=user).order_by('-date')[:5]
+    recent_diet = DietLog.objects.filter(user=user).order_by('-date', 'meal_type')[:5]
+
+    context = {
+        'profile': profile,
+        'latest_metric': latest_metric,
+        'bmi': bmi,
+        'bmi_category': bmi_category,
+        'ideal_low': ideal_low,
+        'ideal_high': ideal_high,
+        'weight_labels': json.dumps(weight_labels),
+        'weight_data': json.dumps(weight_data),
+        'total_workout_mins': total_workout_mins,
+        'total_calories_burned': total_calories_burned,
+        'calories_today': calories_today,
+        'protein_today': round(protein_today or 0, 1),
+        'workout_type_labels': json.dumps(list(workout_types.keys())),
+        'workout_type_data': json.dumps(list(workout_types.values())),
+        'recent_workouts': recent_workouts,
+        'recent_diet': recent_diet,
+        'today': today,
+    }
+    return render(request, 'tracker/dashboard.html', context)
+
+
+@login_required
+def log_workout(request):
+    if request.method == 'POST':
+        form = WorkoutLogForm(request.POST)
+        if form.is_valid():
+            workout = form.save(commit=False)
+            workout.user = request.user
+            workout.save()
+            messages.success(request, 'Workout logged successfully!')
+            return redirect('workout_list')
+    else:
+        form = WorkoutLogForm(initial={'date': timezone.now().date()})
+    return render(request, 'tracker/log_workout.html', {'form': form})
+
+
+@login_required
+def workout_list(request):
+    workouts = WorkoutLog.objects.filter(user=request.user)
+    return render(request, 'tracker/workout_list.html', {'workouts': workouts})
+
+
+@login_required
+def delete_workout(request, pk):
+    workout = get_object_or_404(WorkoutLog, pk=pk, user=request.user)
+    workout.delete()
+    messages.success(request, 'Workout deleted.')
+    return redirect('workout_list')
+
+
+@login_required
+def log_diet(request):
+    if request.method == 'POST':
+        form = DietLogForm(request.POST)
+        if form.is_valid():
+            diet = form.save(commit=False)
+            diet.user = request.user
+            diet.save()
+            messages.success(request, 'Diet entry logged!')
+            return redirect('diet_list')
+    else:
+        form = DietLogForm(initial={'date': timezone.now().date()})
+    return render(request, 'tracker/log_diet.html', {'form': form})
+
+
+@login_required
+def diet_list(request):
+    diets = DietLog.objects.filter(user=request.user)
+    return render(request, 'tracker/diet_list.html', {'diets': diets})
+
+
+@login_required
+def delete_diet(request, pk):
+    diet = get_object_or_404(DietLog, pk=pk, user=request.user)
+    diet.delete()
+    messages.success(request, 'Diet entry deleted.')
+    return redirect('diet_list')
+
+
+@login_required
+def log_body_metric(request):
+    if request.method == 'POST':
+        form = BodyMetricForm(request.POST)
+        if form.is_valid():
+            metric = form.save(commit=False)
+            metric.user = request.user
+            metric.save()
+            messages.success(request, 'Body metrics logged!')
+            return redirect('dashboard')
+    else:
+        form = BodyMetricForm(initial={'date': timezone.now().date()})
+    return render(request, 'tracker/log_metric.html', {'form': form})
+
+
+@login_required
+def metrics_list(request):
+    metrics = BodyMetric.objects.filter(user=request.user)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    metrics_data = []
+    for m in metrics:
+        bmi = profile.calculate_bmi(m.weight_kg)
+        metrics_data.append({
+            'metric': m,
+            'bmi': bmi,
+            'bmi_category': profile.bmi_category(bmi)
+        })
+
+    return render(request, 'tracker/metrics_list.html', {'metrics_data': metrics_data})

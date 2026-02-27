@@ -1,0 +1,162 @@
+# 💪 FitTrack – Smart Personal Fitness Tracker
+
+A full-featured web-based fitness tracking system built with **Django** and **Bootstrap 5**.
+
+![FitTrack Dashboard](https://via.placeholder.com/800x400/0a0f0a/00e676?text=FitTrack+Dashboard)
+
+## ✨ Features
+
+- **📊 Dashboard** – Real-time health summary with interactive Chart.js visualizations
+- **⚡ Workout Logger** – Log exercises by type, duration, intensity, sets & reps
+- **🥗 Diet Tracker** – Track meals with calorie, protein, carbs & fat breakdown
+- **⚖️ Body Metrics** – Monitor weight over time with automatic BMI calculation
+- **🎯 BMI Analysis** – Instant BMI score, category, and ideal weight range
+- **📈 Health Trends** – Weight trend chart and workout distribution donut chart
+- **🔐 Secure Auth** – Full user registration, login, and session management
+- **👤 User Profiles** – Personalized profiles with height, goal weight & DOB
+
+## 🛠️ Tech Stack
+
+| Layer     | Technology                    |
+|-----------|-------------------------------|
+| Backend   | Django 4.2 (Python)           |
+| Frontend  | Bootstrap 5.3, Chart.js 4.4   |
+| Database  | SQLite (dev) / PostgreSQL (prod) |
+| Icons     | Bootstrap Icons               |
+| Fonts     | Bebas Neue + DM Sans (Google) |
+
+## 🚀 Local Setup
+
+### Prerequisites
+- Python 3.9+
+- pip
+
+### Steps
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/YOUR_USERNAME/fittrack.git
+cd fittrack
+
+# 2. Create a virtual environment
+python -m venv venv
+
+# On Windows:
+venv\Scripts\activate
+# On Mac/Linux:
+source venv/bin/activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Apply database migrations
+python manage.py makemigrations
+python manage.py migrate
+
+# 5. Create a superuser (for admin access)
+python manage.py createsuperuser
+
+# 6. Run the development server
+python manage.py runserver
+```
+
+Open your browser and visit: **http://127.0.0.1:8000**
+
+## 📁 Project Structure
+
+```
+fittrack/
+├── fittrack/           # Django project config
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+├── tracker/            # Main app
+│   ├── models.py       # UserProfile, BodyMetric, WorkoutLog, DietLog
+│   ├── views.py        # All view logic
+│   ├── forms.py        # Django forms
+│   ├── urls.py         # App URL routes
+│   ├── admin.py        # Admin panel setup
+│   └── templates/
+│       └── tracker/
+│           ├── base.html       # Layout + sidebar
+│           ├── dashboard.html  # Main dashboard
+│           ├── login.html
+│           ├── register.html
+│           ├── setup_profile.html
+│           ├── log_workout.html
+│           ├── workout_list.html
+│           ├── log_diet.html
+│           ├── diet_list.html
+│           ├── log_metric.html
+│           └── metrics_list.html
+├── manage.py
+├── requirements.txt
+└── .gitignore
+```
+
+## 🌐 Deploying to GitHub + Render (Free Hosting)
+
+### Step 1 – Push to GitHub
+
+```bash
+git init
+git add .
+git commit -m "Initial commit: FitTrack fitness tracker"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/fittrack.git
+git push -u origin main
+```
+
+### Step 2 – Deploy on Render.com (Free)
+
+1. Go to [render.com](https://render.com) and sign up
+2. Click **New → Web Service**
+3. Connect your GitHub repo
+4. Set the following:
+   - **Build Command:** `pip install -r requirements.txt && python manage.py migrate`
+   - **Start Command:** `gunicorn fittrack.wsgi:application`
+5. Add environment variable:
+   - `SECRET_KEY` = (generate a new secure key)
+   - `DEBUG` = `False`
+6. Click **Deploy**
+
+### Step 3 – Update settings for production
+
+In `fittrack/settings.py`, update for production:
+```python
+DEBUG = False
+ALLOWED_HOSTS = ['your-app-name.onrender.com']
+```
+
+Add to `requirements.txt`:
+```
+gunicorn
+whitenoise
+```
+
+Add to `MIDDLEWARE` in settings:
+```python
+'whitenoise.middleware.WhiteNoiseMiddleware',
+```
+
+## 📸 Pages Overview
+
+| Page | URL | Description |
+|------|-----|-------------|
+| Dashboard | `/dashboard/` | Overview, stats, charts |
+| Log Workout | `/workout/log/` | Add exercise session |
+| Workout History | `/workout/list/` | View/delete workouts |
+| Log Diet | `/diet/log/` | Add meal entry |
+| Diet History | `/diet/list/` | View/delete diet logs |
+| Log Metrics | `/metrics/log/` | Add weight/body data |
+| Body Metrics | `/metrics/list/` | View BMI history |
+| Profile | `/profile/setup/` | Edit personal info |
+| Admin | `/admin/` | Django admin panel |
+
+## 📄 License
+
+MIT License – free to use, modify, and distribute.
+
+---
+
+Built with ❤️ using Django & Bootstrap
